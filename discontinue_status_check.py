@@ -53,14 +53,14 @@ st.dataframe(df.collect(), use_container_width=True, hide_index=True)
 
 #################### MATERIAL STOCK CHECK ################################
 
-exclude_plant = '' # GGS doesn't have any plants to exclude
+exclude_plant = "''" # GGS doesn't have any plants to exclude
 if sales_org == '0300':
     exclude_plant = "'K%','D%','A%','M%','007','561','571','G19','G18', '035', '101', '181', '221', '325', '697', '780', '821', '830', '976', '977', '978'"
 elif sales_org == '2900':
     exclude_plant = 'A00'
 
 stock_condition = "AVAILABLE_UNITS > 0"
-if sales_org == 'GGS':
+if sales_org == '1045':
     stock_condition += " OR IN_QUALITY_INSP_UNITS > 0 OR OPEN_DELIVERY_QTY > 0 OR BLOCKED_UNITS > 0 OR UN_RESTRICTED_UNITS > 0"
 
 query_atp = f"""SELECT MATERIAL_NO, PLANT_NO, 
@@ -71,7 +71,7 @@ query_atp = f"""SELECT MATERIAL_NO, PLANT_NO,
     (
         SELECT PLANT FROM PUBLISH.GSCCE.PLANT_EDV 
         WHERE SALES_ORG = '{sales_org}'
-        AND NOT(COLLATE(PLANT, 'UTF8') LIKE ANY ('', {exclude_plant}))
+        AND NOT(COLLATE(PLANT, 'UTF8') LIKE ANY ({exclude_plant}))
     ) AS PLANT_V ON ATP.PLANT_NO = PLANT_V.PLANT
 
     WHERE MATERIAL_NO = '{material}' AND ({stock_condition})"""
