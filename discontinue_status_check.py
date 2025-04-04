@@ -41,12 +41,12 @@ query_status = f"""SELECT MATERIAL, SALES_STATUS FROM TERADATA.PRD_DWH_VIEW_LMT.
 df = session.sql(query_status)
 
 if df.count() == 0:   
-    st.write("Material doesn't exist / wrong sales org selection")
+    st.write("Material doesn't exist / wrong sales org :shrug:")
     st.stop()
 elif df.collect()[0]['SALES_STATUS'] in ['DG', 'DV']:
     st.write("Material is already in discontinued status")
 elif df.collect()[0]['SALES_STATUS'] not in ['WV', 'WG']:
-    st.write("Item must be in WG or WV sales status before getting discontinued")
+    st.write("WV/WG sales status condition: FAILED :x:")
 else:
     st.write("While stock last status condition: PASSED :white_check_mark:")
 st.dataframe(df.collect(), use_container_width=True, hide_index=True)
@@ -56,16 +56,11 @@ st.dataframe(df.collect(), use_container_width=True, hide_index=True)
 exclude_plant1 = "''" 
 exclude_plant2 = "''"
 if sales_org == '0300':
-    exclude_plant1 = "'%A', 'D%', 'K%', 'M%', 'G18', 'G19'"
+    exclude_plant1 = "'K%','D%','A%','M%','007','561','571','G19','G18', '035', '101', '181', '221', '325', '697', '780', '821', '830', '976', '977', '978'"
     exclude_plant2 = """SELECT PLANT FROM PUBLISH.GSCCE.PLANT_EDV
-    WHERE SALES_ORG = '0300' 
-    AND CLOSED_PLANT = 'FALSE'
-    AND PLANT_SUBTYPE_DESC IS NOT NULL
-    AND PLANT_SUBTYPE_DESC NOT IN ('E-BUSINESS','EXPORT SERVICE CENTER','SERVICE CENTER')
-    AND PLANT_ALNUM_DESC NOT IN ('ONSITE BENMAN','ONSITE BRANCH (INCLUDING 4PL AND 3PL)','SHOEMOBILE')
-    AND LEFT(PLANT, 1) IN ('0','1','2','3','4','5','6','7','8','9')
-    AND PLANT_SUBTYPE NOT IN ('W','O','P','F')
-    AND PLANT NOT IN ('780','830')"""
+        WHERE SALES_ORG = '0300'
+        AND PLANT_SUBTYPE IN ('O')"""
+    #exclude_plant2 = "''"
 
 stock_condition = "AVAILABLE_UNITS > 0"
 if sales_org == '1045':
