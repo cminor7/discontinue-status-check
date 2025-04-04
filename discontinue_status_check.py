@@ -53,25 +53,35 @@ st.dataframe(df.collect(), use_container_width=True, hide_index=True)
 
 #################### MATERIAL STOCK CHECK ################################
 
-exclude_plant = '' # GGS doesn't have any plants to exclude
+exclude_plant1 = "''" 
+exclude_plant2 = "''"
 if sales_org == '0300':
-    exclude_plant = "'K%','D%','A%','M%','007','561','571','G19','G18', '035', '101', '181', '221', '325', '697', '780', '821', '830', '976', '977', '978'"
-elif sales_org == '2900':
-    exclude_plant = 'A00'
+    exclude_plant1 = "'%A', 'D%', 'K%', 'M%', 'G18', 'G19'"
+    exclude_plant2 = """SELECT PLANT FROM PUBLISH.GSCCE.PLANT_EDV
+    WHERE SALES_ORG = '0300' 
+    AND CLOSED_PLANT = 'FALSE'
+    AND PLANT_SUBTYPE_DESC IS NOT NULL
+    AND PLANT_SUBTYPE_DESC NOT IN ('E-BUSINESS','EXPORT SERVICE CENTER','SERVICE CENTER')
+    AND PLANT_ALNUM_DESC NOT IN ('ONSITE BENMAN','ONSITE BRANCH (INCLUDING 4PL AND 3PL)','SHOEMOBILE')
+    AND LEFT(PLANT, 1) IN ('0','1','2','3','4','5','6','7','8','9')
+    AND PLANT_SUBTYPE NOT IN ('W','O','P','F')
+    AND PLANT NOT IN ('780','830')"""
 
 stock_condition = "AVAILABLE_UNITS > 0"
-if sales_org == 'GGS':
+if sales_org == '1045':
     stock_condition += " OR IN_QUALITY_INSP_UNITS > 0 OR OPEN_DELIVERY_QTY > 0 OR BLOCKED_UNITS > 0 OR UN_RESTRICTED_UNITS > 0"
 
 query_atp = f"""SELECT MATERIAL_NO, PLANT_NO, 
     IN_QUALITY_INSP_UNITS, BLOCKED_UNITS, OPEN_DELIVERY_QTY, UN_RESTRICTED_UNITS,
     (AVAILABLE_UNITS + IN_QUALITY_INSP_UNITS) AS AVAILABLE_UNITS
+    
     FROM TERADATA.PRD_DWH_VIEW_LMT.ATP_AVAILABLETOPROMISE_V AS ATP
     INNER JOIN 
     (
         SELECT PLANT FROM PUBLISH.GSCCE.PLANT_EDV 
         WHERE SALES_ORG = '{sales_org}'
-        AND NOT(COLLATE(PLANT, 'UTF8') LIKE ANY ('', {exclude_plant}))
+        AND NOT(COLLATE(PLANT, 'UTF8') LIKE ANY ({exclude_plant1}))
+        AND PLANT NOT IN ({exclude_plant2})
     ) AS PLANT_V ON ATP.PLANT_NO = PLANT_V.PLANT
 
     WHERE MATERIAL_NO = '{material}' AND ({stock_condition})"""
@@ -101,7 +111,7 @@ else:
 
 #################### MATERIAL SUBMISSION CHECK ################################
 
-query_submit = f"""SELECT ID, FIELD, NEW_VALUE, SUBMITTED_DATE, SALESORG, OLDCODE 
+query_submit = f"""SELECT ID, FIELD, NEW_VALUE, SALESORG, OLDCODE 
     FROM ISP.RA.CLEAR_TO_DISC_US_MEX 
     WHERE ID = '{material}' 
     AND (NEW_VALUE LIKE 'DG%' OR NEW_VALUE LIKE 'DV%') 
