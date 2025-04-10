@@ -1,3 +1,4 @@
+from re import sub
 import streamlit as st
 from snowflake.snowpark.context import get_active_session
 
@@ -16,9 +17,9 @@ st.divider()
 st.subheader("Filters")
 col1, col2 = st.columns(2)
 with col1:
-    sales_org_name = st.selectbox('Sales Org:', ('GUS', 'GCAN', 'GGS'))
+    sales_org_name = st.selectbox('sales org', ('GUS', 'GCAN', 'GGS'))
 with col2:
-    material = st.text_input("Enter a material:", "").replace(" ", "")
+    material = sub(r'[^a-zA-Z0-9-/\.]', '', st.text_input("material", "")) 
 
 if material == "":
     st.stop()
@@ -34,33 +35,28 @@ st.subheader("Results")
 
 #################### MATERIAL STATUS CHECK ################################
 
-query_status = f"""SELECT MATERIAL, SALES_STATUS FROM TERADATA.PRD_DWH_VIEW_LMT.MATERIAL_NORTHAMERICAN_V
+query_status = f"""SELECT SALESORG, MATERIAL, SALES_STATUS, SHORT_DESCRIPTION FROM TERADATA.PRD_DWH_VIEW_LMT.MATERIAL_NORTHAMERICAN_V
     WHERE SALESORG = '{sales_org}'
     AND MATERIAL = '{material}'"""
 
 df = session.sql(query_status)
 
 if df.count() == 0:   
-    st.write("Material doesn't exist / wrong sales org :shrug:")
+    st.write("material doesn't exist / wrong sales org :shrug:")
     st.stop()
 elif df.collect()[0]['SALES_STATUS'] in ['DG', 'DV']:
-    st.write("Material is already in discontinued status")
+    st.write("material is already in discontinued status")
 elif df.collect()[0]['SALES_STATUS'] not in ['WV', 'WG']:
     st.write("WV/WG sales status condition: FAILED :x:")
 else:
-    st.write("While stock last status condition: PASSED :white_check_mark:")
+    st.write("while stock last status condition: PASSED :white_check_mark:")
 st.dataframe(df.collect(), use_container_width=True, hide_index=True)
 
 #################### MATERIAL STOCK CHECK ################################
 
-exclude_plant1 = "''" 
-exclude_plant2 = "''"
+exclude_plant = "''" 
 if sales_org == '0300':
-    exclude_plant1 = "'K%','D%','A%','M%','007','561','571','G19','G18', '035', '101', '181', '221', '325', '697', '780', '821', '830', '976', '977', '978'"
-    exclude_plant2 = """SELECT PLANT FROM PUBLISH.GSCCE.PLANT_EDV
-        WHERE SALES_ORG = '0300'
-        AND PLANT_SUBTYPE IN ('O')"""
-    #exclude_plant2 = "''"
+    exclude_plant = "SELECT PLANT FROM ISP.RA.DISCONTINUE_EXCLUDE_PLANTS"
 
 stock_condition = "AVAILABLE_UNITS > 0"
 if sales_org == '1045':
@@ -75,8 +71,7 @@ query_atp = f"""SELECT MATERIAL_NO, PLANT_NO,
     (
         SELECT PLANT FROM PUBLISH.GSCCE.PLANT_EDV 
         WHERE SALES_ORG = '{sales_org}'
-        AND NOT(COLLATE(PLANT, 'UTF8') LIKE ANY ({exclude_plant1}))
-        AND PLANT NOT IN ({exclude_plant2})
+        AND PLANT NOT IN ({exclude_plant})
     ) AS PLANT_V ON ATP.PLANT_NO = PLANT_V.PLANT
 
     WHERE MATERIAL_NO = '{material}' AND ({stock_condition})"""
@@ -85,10 +80,10 @@ query_atp = f"""SELECT MATERIAL_NO, PLANT_NO,
 df = session.sql(query_atp)
 
 if df.count() > 0:  
-    st.write("No stock condition: FAILED :x:")
+    st.write("no stock condition: FAILED :x:")
     st.dataframe(df.collect(), use_container_width=True, hide_index=True)
 else:
-    st.write("No stock condition: PASSED :white_check_mark:")
+    st.write("no shippable inventory condition: PASSED :white_check_mark:")
     
 #################### MATERIAL OPEN PO CHECK ################################
 
@@ -99,10 +94,10 @@ query_openpo = f"""SELECT DOCNUMBER, LINENUMBER, MATERIAL, DOCDATE, PLANT, SUPPL
 df = session.sql(query_openpo)
 
 if df.count() > 0:
-    st.write("No open PO condition: FAILED :x:")
+    st.write("no open PO condition: FAILED :x:")
     st.dataframe(df.collect(), use_container_width=True, hide_index=True)
 else:
-    st.write("No open PO condition: PASSED :white_check_mark:")
+    st.write("no open PO condition: PASSED :white_check_mark:")
 
 #################### MATERIAL SUBMISSION CHECK ################################
 
@@ -116,4 +111,4 @@ df = session.sql(query_submit)
 
 if df.count() > 0:
     st.write("Material has been submitted for discontinue :cat2:")
-    st.dataframe(df.collect(), use_container_width=True, hide_index=True)
+    st.dataframe(df.collect()
